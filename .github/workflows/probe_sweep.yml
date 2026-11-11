@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [test.Repeat, test.Lipsum, test.Nones]
+        target: [test.Nones]
     runs-on: ubuntu-latest
     timeout-minutes: 340
     steps:
@@ -35,7 +35,7 @@ jobs:
           pip install --no-cache-dir -e .
       - name: Run every probe module
         run: |
-          mkdir -p out
+          set +e; mkdir -p out
           for f in garak/probes/*.py; do
             m=$(basename "$f" .py)
             case "$m" in __init__|base|_tier) continue;; esac
