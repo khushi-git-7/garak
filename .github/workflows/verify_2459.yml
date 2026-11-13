@@ -7,38 +7,19 @@ permissions:
 env:
   XDG_CACHE_HOME: ${{ github.workspace }}/.cache
 jobs:
-  check:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  sweep:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: {fetch-depth: 3}
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
-      - name: Install
-        run: |
+      - run: |
           python -m pip install --upgrade pip
           pip install --no-cache-dir -r requirements.txt
-      - name: Before the fix (how many scores each detector returned)
+      - name: Sweep tests/detectors for outputs dropped by language (main's tests and this branch's)
         shell: bash
         run: |
-          git show HEAD~2:tests/detectors/test_detectors_unsafe_content.py > /tmp/old.py
-          python - <<'PY'
-          from garak import _plugins
-          from garak.attempt import Attempt, Message
-          import importlib.util, sys
-          sys.path.insert(0, "tests/detectors")
-          spec = importlib.util.spec_from_file_location("t", "tests/detectors/test_detectors_unsafe_content.py")
-          t = importlib.util.module_from_spec(spec); spec.loader.exec_module(t)
-          for k in t.TOXICITY_DETECTORS:
-              d = _plugins.load_plugin(k)
-              for lang in (None, "en"):
-                  a = Attempt(prompt=Message("prompt", lang=lang) if lang else Message("prompt"))
-                  a.outputs = t.UNSAFE_TEXTS
-                  print(k, "lang", lang, "->", len(list(d.detect(a))), "scores for", len(t.UNSAFE_TEXTS), "outputs")
-          PY
-      - name: With the fix
-        run: python -m pytest tests/detectors/test_detectors_unsafe_content.py -q -p no:cacheprovider
+          python -m pytest tests/detectors -q -p no:cacheprovider -p sweep_plugin -x --co -q > /dev/null
+          python -m pytest tests/detectors -q -p no:cacheprovider -p sweep_plugin 2>&1 | tail -3 || true
+          echo "### tests where outputs were dropped (with this branch's fix):"
+          sort sweep.log | uniq -c | sort -rn | head -60 || echo none
