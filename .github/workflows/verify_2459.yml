@@ -19,7 +19,14 @@ jobs:
       - name: Sweep tests/detectors for outputs dropped by language (main's tests and this branch's)
         shell: bash
         run: |
-          python -m pytest tests/detectors -q -p no:cacheprovider -p sweep_plugin -x --co -q > /dev/null
-          python -m pytest tests/detectors -q -p no:cacheprovider -p sweep_plugin 2>&1 | tail -3 || true
-          echo "### tests where outputs were dropped (with this branch's fix):"
-          sort sweep.log | uniq -c | sort -rn | head -60 || echo none
+          git fetch -q --depth=1 origin main
+          git show FETCH_HEAD:tests/detectors/test_detectors_unsafe_content.py > /tmp/fixed.py
+          cp tests/detectors/test_detectors_unsafe_content.py /tmp/fixed.py
+          git checkout FETCH_HEAD -- tests/detectors/test_detectors_unsafe_content.py
+          python -m pytest tests/detectors -q -p no:cacheprovider -p sweep_plugin 2>&1 | tail -2 || true
+          echo "### main's tests: where outputs were dropped (the toxicity tests must show up: the control)"
+          { sort sweep.log | uniq -c | sort -rn; } 2>/dev/null || echo none
+          rm -f sweep.log; cp /tmp/fixed.py tests/detectors/test_detectors_unsafe_content.py
+          python -m pytest tests/detectors -q -p no:cacheprovider -p sweep_plugin 2>&1 | tail -2 || true
+          echo "### this branch's tests: where outputs were dropped"
+          { sort sweep.log | uniq -c | sort -rn; } 2>/dev/null || echo none
